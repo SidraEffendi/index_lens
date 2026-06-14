@@ -10,10 +10,10 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
-if ANTHROPIC_API_KEY:
-    from anthropic import Anthropic
-    client = Anthropic()
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+if GROQ_API_KEY:
+    from groq import Groq
+    client = Groq()
 else:
     client = None
 
@@ -271,16 +271,17 @@ Sample nodes: {json.dumps(sample_nodes, indent=2)}"""
     messages = [{"role": h["role"], "content": h["content"]} for h in body.history]
     messages.append({"role": "user", "content": body.message})
 
-    response = client.messages.create(
-        model="claude-sonnet-4-6",
-        max_tokens=1024,
-        system=f"""You are a data analyst assistant helping users explore a dataset through a graph index.
-Nodes are rows; edges connect rows that share values in categorical columns.
-
-{graph_context}
-
-Answer questions concisely. Reference specific node IDs and their properties when helpful.""",
-        messages=messages,
+    system_prompt = (
+        "You are a data analyst assistant helping users explore a dataset through a graph index.\n"
+        "Nodes are rows; edges connect rows that share values in categorical columns.\n\n"
+        f"{graph_context}\n\n"
+        "Answer questions concisely. Reference specific node IDs and their properties when helpful."
     )
 
-    return {"response": response.content[0].text}
+    response = client.chat.completions.create(
+        model="llama-3.3-70b-versatile",
+        max_tokens=1024,
+        messages=[{"role": "system", "content": system_prompt}] + messages,
+    )
+
+    return {"response": response.choices[0].message.content}
