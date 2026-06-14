@@ -1,5 +1,6 @@
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from mangum import Mangum
 from pydantic import BaseModel
 import pandas as pd
 import networkx as nx
@@ -161,7 +162,7 @@ def graph_query_fallback(message: str, nodes: list, edges: list, columns: list) 
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
-@app.post("/api/upload")
+@app.post("/upload")
 async def upload_file(file: UploadFile = File(...)):
     content = await file.read()
     filename = file.filename or ""
@@ -197,7 +198,7 @@ class GraphBuildRequest(BaseModel):
     relColumns: list[str] = []
 
 
-@app.post("/api/graph/build")
+@app.post("/graph/build")
 async def build_graph(body: GraphBuildRequest):
     if not body.rawData:
         raise HTTPException(400, "No data provided")
@@ -222,7 +223,7 @@ class ChatRequest(BaseModel):
     relColumns: list[str] = []
 
 
-@app.post("/api/chat")
+@app.post("/chat")
 async def chat(body: ChatRequest):
     if not body.nodes:
         raise HTTPException(400, "Please build the graph first.")
@@ -261,3 +262,7 @@ async def chat(body: ChatRequest):
         messages=[{"role": "system", "content": system_prompt}] + messages,
     )
     return {"response": response.choices[0].message.content}
+
+
+# Vercel Python runtime entry point
+handler = Mangum(app, lifespan="off")
