@@ -9,6 +9,8 @@ import './App.css'
 
 export default function App() {
   const [uploadResult, setUploadResult] = useState(null)
+  // datasetId is set when Supabase is configured; rawData is the fallback
+  const [datasetId, setDatasetId] = useState(null)
   const [rawData, setRawData] = useState([])
 
   // Graph state
@@ -27,7 +29,7 @@ export default function App() {
   const [loading, setLoading] = useState({ graph: false, semantic: false, chat: false })
   const [error, setError] = useState(null)
 
-  const buildGraph = useCallback(async (data, cols) => {
+  const buildGraph = useCallback(async (id, data, cols) => {
     setGraphData(null)
     setSelectedNode(null)
     setError(null)
@@ -36,7 +38,12 @@ export default function App() {
       const res = await fetch('/api/graph/build', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ rawData: data, relColumns: cols }),
+        // Send datasetId when available; backend fetches from Supabase.
+        // Fall back to rawData for local dev without Supabase.
+        body: JSON.stringify(id
+          ? { datasetId: id, relColumns: cols }
+          : { rawData: data, relColumns: cols }
+        ),
       })
       const json = await res.json()
       if (!res.ok) throw new Error(json.detail || 'Graph build failed')
@@ -70,13 +77,20 @@ export default function App() {
   }, [])
 
   const handleUpload = useCallback(async (data) => {
+    const id = data.datasetId || null
+    const raw = data.rawData || []
     setUploadResult(data)
-    setRawData(data.rawData || [])
+    setDatasetId(id)
+    setRawData(raw)
     setGraphData(null)
     setSemanticData(null)
     setSelectedNode(null)
     setChatHistory([])
     setError(null)
+    const cols = data.suggestedRelColumns || []
+    setRelColumns(cols)
+    buildGraph(id, raw, cols)
+  }, [buildGraph])
 
     const suggested = data.suggestedRelColumns || []
     setRelColumns(suggested)
@@ -91,8 +105,8 @@ export default function App() {
 
   const handleRebuildGraph = useCallback(() => {
     setChatHistory([])
-    buildGraph(rawData, relColumns)
-  }, [buildGraph, rawData, relColumns])
+    buildGraph(datasetId, rawData, relColumns)
+  }, [buildGraph, datasetId, rawData, relColumns])
 
   const handleRebuildSemantic = useCallback(() => {
     buildSemantic(rawData, semanticColumns, nClusters)
@@ -138,6 +152,11 @@ export default function App() {
       <header className="app-header">
         <h1>IndexLens</h1>
         <span className="header-sub">Graph-based dataset exploration</span>
+        {datasetId && (
+          <span className="dataset-id-badge" title={`Supabase ID: ${datasetId}`}>
+            ☁ saved
+          </span>
+        )}
       </header>
 
       <main className="app-main">

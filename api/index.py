@@ -11,9 +11,17 @@ import os
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 if GROQ_API_KEY:
     from groq import Groq
-    client = Groq()
+    groq_client = Groq()
 else:
-    client = None
+    groq_client = None
+
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_ANON_KEY")
+if SUPABASE_URL and SUPABASE_KEY:
+    from supabase import create_client
+    db = create_client(SUPABASE_URL, SUPABASE_KEY)
+else:
+    db = None
 
 app = FastAPI(title="IndexLens API")
 
@@ -160,6 +168,30 @@ def graph_query_fallback(message: str, nodes: list, edges: list, columns: list) 
     )
 
 
+# ── Supabase helpers ──────────────────────────────────────────────────────────
+
+def _db_store(record: dict) -> str | None:
+    if db is None:
+        return None
+    try:
+        result = db.table("datasets").insert(record).execute()
+        return result.data[0]["id"]
+    except Exception as e:
+        print(f"[supabase] insert failed: {e}")
+        return None
+
+
+def _db_fetch(dataset_id: str) -> list[dict]:
+    if db is None or not dataset_id:
+        return []
+    try:
+        result = db.table("datasets").select("raw_data").eq("id", dataset_id).single().execute()
+        return result.data.get("raw_data", [])
+    except Exception as e:
+        print(f"[supabase] fetch failed: {e}")
+        return []
+
+
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
 @app.post("/upload")
@@ -183,26 +215,43 @@ async def upload_file(file: UploadFile = File(...)):
         raise HTTPException(400, "Dataset is empty")
 
     df = df.head(200).reset_index(drop=True)
-    return {
+    raw_data = json.loads(df.fillna("").to_json(orient="records"))
+    schema = {col: str(dtype) for col, dtype in df.dtypes.items()}
+    suggested = _suggest_rel_cols(df)
+
+    dataset_id = _db_store({
+        "name": filename,
         "rows": len(df),
         "columns": list(df.columns),
-        "schema": {col: str(dtype) for col, dtype in df.dtypes.items()},
+        "schema": schema,
+        "suggested_rel_columns": suggested,
+        "raw_data": raw_data,
+    })
+
+    return {
+        "datasetId": dataset_id,
+        "rows": len(df),
+        "columns": list(df.columns),
+        "schema": schema,
         "preview": json.loads(df.head(10).fillna("").to_json(orient="records")),
-        "suggestedRelColumns": _suggest_rel_cols(df),
-        "rawData": json.loads(df.fillna("").to_json(orient="records")),
+        "suggestedRelColumns": suggested,
+        # rawData included when Supabase is unavailable or insert failed
+        "rawData": raw_data if dataset_id is None else [],
     }
 
 
 class GraphBuildRequest(BaseModel):
-    rawData: list[dict]
+    datasetId: str | None = None
+    rawData: list[dict] = []
     relColumns: list[str] = []
 
 
 @app.post("/graph/build")
 async def build_graph(body: GraphBuildRequest):
-    if not body.rawData:
-        raise HTTPException(400, "No data provided")
-    G = _build_nx(body.rawData, body.relColumns)
+    raw_data = body.rawData or _db_fetch(body.datasetId or "")
+    if not raw_data:
+        raise HTTPException(400, "No data — provide datasetId or rawData")
+    G = _build_nx(raw_data, body.relColumns)
     nodes = [{"id": nid, **attrs} for nid, attrs in G.nodes(data=True)]
     edges = [{"source": u, "target": v, "label": d.get("label", "")} for u, v, d in G.edges(data=True)]
     return {
@@ -212,6 +261,55 @@ async def build_graph(body: GraphBuildRequest):
         "edgeCount": G.number_of_edges(),
         "relColumns": body.relColumns,
     }
+
+
+class SemanticBuildRequest(BaseModel):
+    datasetId: str | None = None
+    rawData: list[dict] = []
+    textColumns: list[str] = []
+    nClusters: int = 3
+
+
+@app.post("/semantic/build")
+async def semantic_build(body: SemanticBuildRequest):
+    from sklearn.feature_extraction.text import TfidfVectorizer
+    from sklearn.decomposition import PCA
+    from sklearn.cluster import KMeans
+    import numpy as np
+
+    raw_data = body.rawData or _db_fetch(body.datasetId or "")
+    if not raw_data:
+        raise HTTPException(400, "No data — provide datasetId or rawData")
+
+    df = pd.DataFrame(raw_data)
+    text_cols = [c for c in body.textColumns if c in df.columns]
+    if not text_cols:
+        text_cols = [c for c in df.columns if df[c].dtype == object]
+    if not text_cols:
+        text_cols = list(df.columns)
+
+    texts = (
+        df[text_cols].fillna("").astype(str)
+        .apply(lambda row: " ".join(f"{col} {val}" for col, val in row.items()), axis=1)
+        .tolist()
+    )
+
+    try:
+        X = TfidfVectorizer(max_features=500).fit_transform(texts).toarray()
+    except ValueError:
+        X = np.zeros((len(texts), 2))
+
+    n = len(texts)
+    X_2d = PCA(n_components=2, random_state=42).fit_transform(X) if (X.shape[1] >= 2 and n >= 2) else np.zeros((n, 2))
+    k = max(1, min(body.nClusters, n))
+    labels = KMeans(n_clusters=k, random_state=42, n_init=10).fit_predict(X).tolist() if k > 1 else [0] * n
+
+    points = [
+        {"id": i, "x": float(X_2d[i, 0]), "y": float(X_2d[i, 1]), "cluster": int(labels[i]),
+         **{col: str(val) for col, val in row.items()}}
+        for i, row in enumerate(raw_data)
+    ]
+    return {"points": points, "nClusters": k, "textColumns": text_cols}
 
 
 class ChatRequest(BaseModel):
@@ -228,7 +326,7 @@ async def chat(body: ChatRequest):
     if not body.nodes:
         raise HTTPException(400, "Please build the graph first.")
 
-    if client is None:
+    if groq_client is None:
         return {"response": graph_query_fallback(body.message, body.nodes, body.edges, body.columns), "mode": "demo"}
 
     top_hubs = sorted(
@@ -256,7 +354,7 @@ async def chat(body: ChatRequest):
     messages = [{"role": h["role"], "content": h["content"]} for h in body.history]
     messages.append({"role": "user", "content": body.message})
 
-    response = client.chat.completions.create(
+    response = groq_client.chat.completions.create(
         model="llama-3.3-70b-versatile",
         max_tokens=1024,
         messages=[{"role": "system", "content": system_prompt}] + messages,
