@@ -8,6 +8,7 @@ import './App.css'
 
 export default function App() {
   const [uploadResult, setUploadResult] = useState(null)
+  const [rawData, setRawData] = useState([])
   const [relColumns, setRelColumns] = useState([])
   const [graphData, setGraphData] = useState(null)
   const [selectedNode, setSelectedNode] = useState(null)
@@ -15,7 +16,7 @@ export default function App() {
   const [loading, setLoading] = useState({ graph: false, chat: false })
   const [error, setError] = useState(null)
 
-  const buildGraph = useCallback(async (cols) => {
+  const buildGraph = useCallback(async (data, cols) => {
     setGraphData(null)
     setSelectedNode(null)
     setError(null)
@@ -24,7 +25,7 @@ export default function App() {
       const res = await fetch('/api/graph/build', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ relColumns: cols }),
+        body: JSON.stringify({ rawData: data, relColumns: cols }),
       })
       const json = await res.json()
       if (!res.ok) throw new Error(json.detail || 'Graph build failed')
@@ -38,19 +39,20 @@ export default function App() {
 
   const handleUpload = useCallback(async (data) => {
     setUploadResult(data)
+    setRawData(data.rawData || [])
     setGraphData(null)
     setSelectedNode(null)
     setChatHistory([])
     setError(null)
     const cols = data.suggestedRelColumns || []
     setRelColumns(cols)
-    buildGraph(cols)
+    buildGraph(data.rawData || [], cols)
   }, [buildGraph])
 
   const handleRebuild = useCallback(() => {
-    buildGraph(relColumns)
     setChatHistory([])
-  }, [buildGraph, relColumns])
+    buildGraph(rawData, relColumns)
+  }, [buildGraph, rawData, relColumns])
 
   const handleChat = useCallback(async (message) => {
     const newHistory = [...chatHistory, { role: 'user', content: message }]
@@ -61,7 +63,14 @@ export default function App() {
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message, history: chatHistory }),
+        body: JSON.stringify({
+          message,
+          history: chatHistory,
+          nodes: graphData?.nodes || [],
+          edges: graphData?.edges || [],
+          columns: uploadResult?.columns || [],
+          relColumns: graphData?.relColumns || [],
+        }),
       })
       const json = await res.json()
       if (!res.ok) throw new Error(json.detail || 'Chat failed')
@@ -71,7 +80,7 @@ export default function App() {
     } finally {
       setLoading(l => ({ ...l, chat: false }))
     }
-  }, [chatHistory])
+  }, [chatHistory, graphData, uploadResult])
 
   return (
     <div className="app">

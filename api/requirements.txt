@@ -1,0 +1,5 @@
+fastapi
+groq
+pandas
+networkx
+python-multipart
