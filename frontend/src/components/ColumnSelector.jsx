@@ -1,4 +1,4 @@
-export default function ColumnSelector({ columns, schema, selected, onChange, onRebuild, loading }) {
+export default function ColumnSelector({ columns, schema, selected, onChange, onRebuild, loading, label = 'Link nodes by:', hint = 'edges connect rows that share the same value in checked columns' }) {
   const toggle = (col) => {
     const next = selected.includes(col)
       ? selected.filter((c) => c !== col)
@@ -9,8 +9,8 @@ export default function ColumnSelector({ columns, schema, selected, onChange, on
   return (
     <div className="col-selector">
       <div className="col-selector-header">
-        <span className="col-selector-label">Link nodes by:</span>
-        <span className="col-selector-hint">edges connect rows that share the same value in checked columns</span>
+        <span className="col-selector-label">{label}</span>
+        <span className="col-selector-hint">{hint}</span>
       </div>
       <div className="col-selector-cols">
         {columns.map((col) => {

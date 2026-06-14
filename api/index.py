@@ -264,5 +264,65 @@ async def chat(body: ChatRequest):
     return {"response": response.choices[0].message.content}
 
 
+class SemanticBuildRequest(BaseModel):
+    rawData: list[dict]
+    textColumns: list[str] = []
+    nClusters: int = 3
+
+
+@app.post("/semantic/build")
+async def semantic_build(body: SemanticBuildRequest):
+    from sklearn.feature_extraction.text import TfidfVectorizer
+    from sklearn.decomposition import PCA
+    from sklearn.cluster import KMeans
+    import numpy as np
+
+    if not body.rawData:
+        raise HTTPException(400, "No data provided")
+
+    df = pd.DataFrame(body.rawData)
+
+    # Columns to vectorize — default to all string columns
+    text_cols = [c for c in body.textColumns if c in df.columns]
+    if not text_cols:
+        text_cols = [c for c in df.columns if df[c].dtype == object]
+    if not text_cols:
+        text_cols = list(df.columns)
+
+    # Build a text document per row: "col1 val1 col2 val2 ..."
+    texts = (
+        df[text_cols]
+        .fillna("")
+        .astype(str)
+        .apply(lambda row: " ".join(f"{col} {val}" for col, val in row.items()), axis=1)
+        .tolist()
+    )
+
+    # TF-IDF
+    try:
+        X = TfidfVectorizer(max_features=500).fit_transform(texts).toarray()
+    except ValueError:
+        X = np.zeros((len(texts), 2))
+
+    # PCA → 2D
+    n = len(texts)
+    if X.shape[1] >= 2 and n >= 2:
+        X_2d = PCA(n_components=2, random_state=42).fit_transform(X)
+    else:
+        X_2d = np.zeros((n, 2))
+
+    # K-means clustering
+    k = max(1, min(body.nClusters, n))
+    labels = KMeans(n_clusters=k, random_state=42, n_init=10).fit_predict(X).tolist() if k > 1 else [0] * n
+
+    points = [
+        {"id": i, "x": float(X_2d[i, 0]), "y": float(X_2d[i, 1]), "cluster": int(labels[i]),
+         **{col: str(val) for col, val in row.items()}}
+        for i, row in enumerate(body.rawData)
+    ]
+
+    return {"points": points, "nClusters": k, "textColumns": text_cols}
+
+
 # Vercel Python runtime entry point
 handler = Mangum(app, lifespan="off")

@@ -88,6 +88,114 @@ body {
   margin-top: 0.25rem !important;
 }
 
+/* ── Tab bar ── */
+.tab-bar {
+  display: flex;
+  gap: 0.4rem;
+  background: #fff;
+  border: 1px solid #e9ecef;
+  border-radius: 10px;
+  padding: 0.4rem;
+  width: fit-content;
+}
+
+.tab-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.4rem 1rem;
+  border: none;
+  border-radius: 7px;
+  background: none;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: #6c757d;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s, color 0.15s;
+}
+
+.tab-btn:hover {
+  background: #f1f3f5;
+  color: #212529;
+}
+
+.tab-btn.active {
+  background: #4361ee;
+  color: #fff;
+}
+
+.tab-count {
+  font-size: 0.7rem;
+  font-weight: 400;
+  opacity: 0.8;
+}
+
+.tab-count.loading {
+  opacity: 0.5;
+}
+
+/* ── Cluster controls ── */
+.cluster-control {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-shrink: 0;
+}
+
+.cluster-input {
+  width: 52px;
+  padding: 0.28rem 0.4rem;
+  border: 1px solid #dee2e6;
+  border-radius: 6px;
+  font-size: 0.82rem;
+  font-family: inherit;
+  text-align: center;
+  outline: none;
+}
+
+.cluster-input:focus {
+  border-color: #4361ee;
+}
+
+/* ── Cluster legend ── */
+.cluster-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.6rem;
+}
+
+.cluster-chip {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.75rem;
+  padding: 0.2rem 0.55rem;
+  border-radius: 20px;
+  border: 1.5px solid #dee2e6;
+  background: #fff;
+  color: #495057;
+}
+
+.cluster-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.cluster-n {
+  color: #adb5bd;
+}
+
+/* ── Inspector cluster label ── */
+.inspector-cluster {
+  font-size: 0.78rem;
+  color: #6c757d;
+  margin-bottom: 0.5rem;
+}
+
 /* ── Column selector ── */
 .col-selector {
   background: #fff;
