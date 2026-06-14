@@ -3,4 +3,6 @@ mangum
 groq
 pandas
 networkx
+scikit-learn
+supabase
 python-multipart

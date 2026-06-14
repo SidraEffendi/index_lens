@@ -33,6 +33,15 @@ body {
   color: #8892b0;
 }
 
+.dataset-id-badge {
+  font-size: 0.72rem;
+  background: rgba(255,255,255,0.12);
+  color: #a8c4a2;
+  padding: 0.15rem 0.55rem;
+  border-radius: 20px;
+  margin-left: auto;
+}
+
 /* ── Main ── */
 .app-main {
   padding: 1.5rem 2rem;
