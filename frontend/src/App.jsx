@@ -3,26 +3,29 @@ import FileUpload from './components/FileUpload'
 import DataPreview from './components/DataPreview'
 import GraphView from './components/GraphView'
 import ChatPanel from './components/ChatPanel'
+import ColumnSelector from './components/ColumnSelector'
 import './App.css'
 
 export default function App() {
   const [uploadResult, setUploadResult] = useState(null)
+  const [relColumns, setRelColumns] = useState([])
   const [graphData, setGraphData] = useState(null)
   const [selectedNode, setSelectedNode] = useState(null)
   const [chatHistory, setChatHistory] = useState([])
   const [loading, setLoading] = useState({ graph: false, chat: false })
   const [error, setError] = useState(null)
 
-  const handleUpload = useCallback(async (data) => {
-    setUploadResult(data)
+  const buildGraph = useCallback(async (cols) => {
     setGraphData(null)
     setSelectedNode(null)
-    setChatHistory([])
     setError(null)
-
     setLoading(l => ({ ...l, graph: true }))
     try {
-      const res = await fetch('/api/graph/build', { method: 'POST' })
+      const res = await fetch('/api/graph/build', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ relColumns: cols }),
+      })
       const json = await res.json()
       if (!res.ok) throw new Error(json.detail || 'Graph build failed')
       setGraphData(json)
@@ -32,6 +35,22 @@ export default function App() {
       setLoading(l => ({ ...l, graph: false }))
     }
   }, [])
+
+  const handleUpload = useCallback(async (data) => {
+    setUploadResult(data)
+    setGraphData(null)
+    setSelectedNode(null)
+    setChatHistory([])
+    setError(null)
+    const cols = data.suggestedRelColumns || []
+    setRelColumns(cols)
+    buildGraph(cols)
+  }, [buildGraph])
+
+  const handleRebuild = useCallback(() => {
+    buildGraph(relColumns)
+    setChatHistory([])
+  }, [buildGraph, relColumns])
 
   const handleChat = useCallback(async (message) => {
     const newHistory = [...chatHistory, { role: 'user', content: message }]
@@ -68,6 +87,15 @@ export default function App() {
 
         {uploadResult && (
           <>
+            <ColumnSelector
+              columns={uploadResult.columns}
+              schema={uploadResult.schema}
+              selected={relColumns}
+              onChange={setRelColumns}
+              onRebuild={handleRebuild}
+              loading={loading.graph}
+            />
+
             <div className="workspace">
               <div className="graph-panel">
                 <div className="panel-title">

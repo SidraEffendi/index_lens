@@ -58,16 +58,30 @@ async def upload_file(file: UploadFile = File(...)):
     schema = {col: str(dtype) for col, dtype in df.dtypes.items()}
     preview = json.loads(df.head(10).fillna("").to_json(orient="records"))
 
+    # Suggest rel columns (auto-detected) so the frontend can pre-check them
+    suggested = []
+    for col in df.columns:
+        series = df[col].dropna().astype(str)
+        n_unique = series.nunique()
+        unique_ratio = n_unique / max(len(series), 1)
+        if 2 <= n_unique <= max(2, len(df) * 0.5) and unique_ratio <= 0.6:
+            suggested.append(col)
+
     return {
         "rows": len(df),
         "columns": list(df.columns),
         "schema": schema,
         "preview": preview,
+        "suggestedRelColumns": suggested,
     }
 
 
+class GraphBuildRequest(BaseModel):
+    relColumns: list[str] | None = None  # None = use auto-detection
+
+
 @app.post("/api/graph/build")
-async def build_graph():
+async def build_graph(body: GraphBuildRequest = GraphBuildRequest()):
     if state["df"] is None:
         raise HTTPException(status_code=400, detail="No dataset uploaded. Please upload a file first.")
 
@@ -79,14 +93,16 @@ async def build_graph():
         props = {col: str(val) if pd.notna(val) else "" for col, val in row.items()}
         G.add_node(idx, **props)
 
-    # Relationship columns: string/object with cardinality between 2 and 50% of rows
-    rel_cols = []
-    for col in df.columns:
-        series = df[col].dropna().astype(str)
-        n_unique = series.nunique()
-        unique_ratio = n_unique / max(len(series), 1)
-        if 2 <= n_unique <= max(2, len(df) * 0.5) and unique_ratio <= 0.6:
-            rel_cols.append(col)
+    if body.relColumns is not None:
+        rel_cols = [c for c in body.relColumns if c in df.columns]
+    else:
+        rel_cols = []
+        for col in df.columns:
+            series = df[col].dropna().astype(str)
+            n_unique = series.nunique()
+            unique_ratio = n_unique / max(len(series), 1)
+            if 2 <= n_unique <= max(2, len(df) * 0.5) and unique_ratio <= 0.6:
+                rel_cols.append(col)
 
     for col in rel_cols:
         groups = df.groupby(df[col].fillna("__null__").astype(str)).groups

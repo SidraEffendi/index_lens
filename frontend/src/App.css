@@ -88,6 +88,103 @@ body {
   margin-top: 0.25rem !important;
 }
 
+/* ── Column selector ── */
+.col-selector {
+  background: #fff;
+  border: 1px solid #e9ecef;
+  border-radius: 10px;
+  padding: 0.85rem 1.25rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.col-selector-header {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.col-selector-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.col-selector-hint {
+  font-size: 0.75rem;
+  color: #adb5bd;
+  white-space: nowrap;
+}
+
+.col-selector-cols {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  flex: 1;
+}
+
+.col-chip {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.3rem 0.65rem;
+  border: 1px solid #dee2e6;
+  border-radius: 20px;
+  cursor: pointer;
+  font-size: 0.78rem;
+  background: #f8f9fa;
+  user-select: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.col-chip input[type="checkbox"] {
+  accent-color: #4361ee;
+  width: 13px;
+  height: 13px;
+  cursor: pointer;
+}
+
+.col-chip.checked {
+  border-color: #4361ee;
+  background: #eef1fd;
+}
+
+.col-chip .col-name {
+  font-weight: 500;
+  color: #212529;
+}
+
+.col-chip .col-type {
+  color: #adb5bd;
+  font-size: 0.7rem;
+}
+
+.rebuild-btn {
+  padding: 0.4rem 1rem;
+  background: #4361ee;
+  color: #fff;
+  border: none;
+  border-radius: 7px;
+  font-size: 0.82rem;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  font-family: inherit;
+  flex-shrink: 0;
+}
+
+.rebuild-btn:hover:not(:disabled) {
+  background: #3451d1;
+}
+
+.rebuild-btn:disabled {
+  background: #adb5bd;
+  cursor: not-allowed;
+}
+
 /* ── Workspace ── */
 .workspace {
   display: grid;
