@@ -87,10 +87,6 @@ export default function App() {
     setSelectedNode(null)
     setChatHistory([])
     setError(null)
-    const cols = data.suggestedRelColumns || []
-    setRelColumns(cols)
-    buildGraph(id, raw, cols)
-  }, [buildGraph])
 
     const suggested = data.suggestedRelColumns || []
     setRelColumns(suggested)
@@ -99,8 +95,8 @@ export default function App() {
     const semCols = strCols.length ? strCols : data.columns
     setSemanticColumns(semCols)
 
-    buildGraph(data.rawData || [], suggested)
-    buildSemantic(data.rawData || [], semCols, 3)
+    buildGraph(id, raw, suggested)
+    buildSemantic(raw, semCols, 3)
   }, [buildGraph, buildSemantic])
 
   const handleRebuildGraph = useCallback(() => {
